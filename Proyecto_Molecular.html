@@ -1,3 +1,1126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador Cuántico de Átomos e Isótopos</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='10' fill='none' stroke='%2322d3ee' stroke-width='3' transform='rotate(25 32 32)'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='10' fill='none' stroke='%2367e8f9' stroke-width='3' transform='rotate(-25 32 32)'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='10' fill='none' stroke='%23a78bfa' stroke-width='3' transform='rotate(90 32 32)'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23facc15'/%3E%3Ccircle cx='54' cy='28' r='3' fill='%23facc15'/%3E%3C/svg%3E">
+    <!-- Tailwind CSS para diseño moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes orbit {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .electron-orbit {
+            animation: orbit var(--speed, 4s) linear infinite;
+        }
+        .quantum-cloud {
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: quantum-drift 9s ease-in-out infinite alternate;
+        }
+        .quantum-cloud-delay { animation-delay: -3s; }
+        .quantum-particle { animation: quantum-pulse 2.8s ease-in-out infinite alternate; }
+        .orbital-volume { opacity: .8; }
+        .factor-effect { animation: factor-flash 1.8s ease-out infinite; }
+        .factor-motion { animation: factor-motion 1.4s ease-in-out infinite alternate; }
+        @keyframes quantum-drift {
+            from { transform: rotate(-5deg) scale(.96); opacity: .62; }
+            to { transform: rotate(5deg) scale(1.04); opacity: .9; }
+        }
+        @keyframes quantum-pulse {
+            from { opacity: .28; }
+            to { opacity: .9; }
+        }
+        @keyframes factor-flash {
+            from { opacity: .25; }
+            to { opacity: .95; }
+        }
+        @keyframes factor-motion {
+            from { transform: translateX(-16px); }
+            to { transform: translateX(16px); }
+        }
+        .loader {
+            border-top-color: #3b82f6;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .panel-title { letter-spacing: .01em; }
+        .status-stable { color: a#6ee7b7; }
+        .status-unstable { color: #fca5a5; }
+        .status-unknown { color: #fde68a; }
+        .periodic-grid { display: grid; grid-template-columns: repeat(18, minmax(42px, 1fr)); gap: .35rem; }
+        .periodic-cell { min-height: 64px; }
+        .hologram-display { position: relative; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(34, 211, 238, .08), transparent 65%); }
+        .hologram-display::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: 2%; height: 14px; border-radius: 50%; background: rgba(34, 211, 238, .3); box-shadow: 0 0 22px rgba(34, 211, 238, .8); transform: perspective(80px) rotateX(55deg); opacity: 0; }
+        .hologram-active { filter: sepia(1) hue-rotate(145deg) saturate(5) drop-shadow(0 0 8px rgba(34, 211, 238, .9)); opacity: .84; animation: hologram-flicker 2.4s steps(2, end) infinite; }
+        .hologram-active + .hologram-scanlines { opacity: 1; }
+        .hologram-display:has(.hologram-active)::after { opacity: 1; }
+        .hologram-scanlines { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: repeating-linear-gradient(0deg, transparent 0 7px, rgba(103, 232, 249, .13) 8px 9px); mix-blend-mode: screen; animation: scanline-move 3s linear infinite; }
+        @keyframes hologram-flicker { 0%, 100% { opacity: .84; } 43% { opacity: .65; } 45% { opacity: .95; } 70% { opacity: .76; } }
+        @keyframes scanline-move { from { transform: translateY(-12px); } to { transform: translateY(12px); } }
+        @media (max-width: 768px) {
+            .periodic-grid { grid-template-columns: repeat(18, minmax(38px, 1fr)); min-width: 760px; overflow-x: auto; }
+            .periodic-cell { min-height: 58px; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+
+    <!-- Pantalla de Carga de Pyodide -->
+    <div id="loading-screen" class="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-50 transition-opacity duration-500">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-700 h-16 w-16 mb-4"></div>
+        <h2 class="text-xl font-bold text-blue-400">Iniciando Entorno Python en el Navegador...</h2>
+        <p class="text-sm text-slate-400 mt-2">Cargando librerías científicas y tabla periódica...</p>
+    </div>
+
+    <!-- Contenedor Principal -->
+    <div class="max-w-7xl mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- ENCABEZADO -->
+        <header class="col-span-12 flex flex-col md:flex-row justify-between items-center bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-700 gap-4">
+            <div>
+                <h1 class="text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
+                    Laboratorio Atómico Interactivo
+                </h1>
+                <p class="text-xs lg:text-sm text-slate-400">Construye, compara y estudia modelos atómicos</p>
+            </div>
+            <nav class="flex items-center gap-1 bg-slate-900/70 p-1 rounded-lg border border-slate-700" aria-label="Vistas">
+                <button id="laboratory-tab" type="button" onclick="window.showView('laboratory')" class="px-3 py-2 rounded-md text-sm font-semibold bg-blue-600 text-white">Laboratorio</button>
+                <button id="periodic-tab" type="button" onclick="window.showView('periodic')" class="px-3 py-2 rounded-md text-sm font-semibold text-slate-300 hover:bg-slate-700">Tabla periódica</button>
+                <button id="particles-tab" type="button" onclick="window.showView('particles')" class="px-3 py-2 rounded-md text-sm font-semibold text-slate-300 hover:bg-slate-700">Partículas</button>
+            </nav>
+            <!-- Selector Rápido de Elementos -->
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <label for="element-selector" class="text-sm font-semibold whitespace-nowrap text-slate-300">Elemento:</label>
+                <select id="element-selector" onchange="window.selectElement(this.value)" class="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white w-full md:w-48 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <!-- Rellenado dinámicamente por Python -->
+                </select>
+            </div>
+        </header>
+
+        <!-- TABLA PERIODICA -->
+        <section id="periodic-view" data-view="periodic" class="hidden col-span-12 bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                <div>
+                    <h2 class="text-xl font-bold text-cyan-300">Tabla periódica</h2>
+                    <p class="text-sm text-slate-400">Selecciona un elemento para verlo en el modelo atómico.</p>
+                </div>
+                <span class="text-xs text-slate-500">Haz clic en cualquier elemento</span>
+            </div>
+            <div id="periodic-grid" class="periodic-grid"></div>
+            <div class="mt-5 pt-4 border-t border-slate-700">
+                <p class="text-xs uppercase tracking-wider text-slate-500 mb-2">Series internas</p>
+                <div id="periodic-inner-grid" class="periodic-grid"></div>
+            </div>
+            <div class="mt-5 pt-4 border-t border-slate-700">
+                <p class="text-xs uppercase tracking-wider text-amber-300 mb-2">Elementos teóricos (119-136)</p>
+                <div id="theoretical-grid" class="periodic-grid"></div>
+            </div>
+            <div class="mt-5 pt-4 border-t border-slate-700">
+                <p class="text-xs uppercase tracking-wider text-fuchsia-300 mb-2">Elementos artificiales o sintéticos</p>
+                <p class="text-xs text-slate-500 mb-2">Producidos principalmente en laboratorios o reactores.</p>
+                <div id="synthetic-grid" class="periodic-grid"></div>
+            </div>
+            <div class="mt-6 pt-5 border-t border-slate-700">
+                <h3 class="text-lg font-bold text-teal-300 mb-1">Familias químicas</h3>
+                <p class="text-xs text-slate-500 mb-4">Elementos agrupados por sus propiedades y posición en la tabla.</p>
+                <div id="category-groups" class="space-y-5"></div>
+            </div>
+            <div id="periodic-details" class="mt-6 pt-5 border-t border-slate-700"></div>
+        </section>
+
+        <!-- ZOOLOGICO DE PARTICULAS -->
+        <section id="particles-view" data-view="particles" class="hidden col-span-12 bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                <div><h2 class="text-xl font-bold text-violet-300">Zoológico de partículas</h2><p class="text-sm text-slate-400">Explora las partículas fundamentales y compuestas del Modelo Estándar.</p></div>
+                <select id="particle-category" onchange="window.filterParticles(this.value)" class="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white"></select>
+            </div>
+            <div id="particle-list" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+            <div id="particle-details" class="mt-6 pt-5 border-t border-slate-700"></div>
+        </section>
+
+        <!-- PANEL IZQUIERDO: Configuración y Ficha Técnica -->
+        <main data-view="laboratory" class="col-span-12 lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- FICHA TÉCNICA DEL ELEMENTO -->
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <div class="flex justify-between items-start mb-4">
+                    <h2 class="panel-title text-lg font-bold text-teal-400 flex items-center gap-2">
+                        📋 Ficha Técnica
+                    </h2>
+                    <span id="elem-symbol" class="text-2xl font-black px-3 py-1 bg-slate-700 text-teal-300 rounded-lg shadow-inner">H</span>
+                </div>
+                
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Nombre:</span>
+                        <span id="elem-name" class="font-semibold text-white">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Número Atómico (Z):</span>
+                        <span id="elem-z" class="font-semibold text-white">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Masa Atómica:</span>
+                        <span id="elem-mass" class="font-semibold text-white">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Configuración Electrónica:</span>
+                        <span id="elem-config" class="font-semibold text-white text-right truncate max-w-[180px]">-</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-700 pb-1">
+                        <span class="text-slate-400">Grupo / Periodo:</span>
+                        <span id="elem-group-period" class="font-semibold text-white">-</span>
+                    </div>
+                </div>
+
+                <!-- Lista de Isótopos del elemento seleccionado -->
+                <div class="mt-5">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Isótopos Naturales Conocidos</h3>
+                    <div id="isotopes-container" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1">
+                        <!-- Botones de isótopos generados por Python -->
+                    </div>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-fuchsia-300 mt-4 mb-2">Isótopos artificiales</h3>
+                        <div id="artificial-isotopes-container" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1"></div>
+                </div>
+            </section>
+
+            <!-- CUSTOMIZADOR COMPLETO -->
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+                    🛠️ Personalizar Modelo
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="custom-name" class="block text-xs text-slate-400 mb-1">Nombre del modelo</label>
+                        <input id="custom-name" type="text" maxlength="40" placeholder="Ej.: mi isótopo de prueba" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <label class="flex items-center gap-3 p-3 rounded-lg bg-violet-950/40 border border-violet-800 cursor-pointer">
+                        <input id="antimatter-mode" type="checkbox" onchange="window.toggleAntimatter(this.checked)" class="w-4 h-4 accent-violet-500">
+                        <span><strong class="block text-violet-200 text-sm">Crear antiátomo</strong><span class="block text-xs text-slate-400">Usa antiprotones, antineutrones y positrones.</span></span>
+                    </label>
+                    <!-- Ajustar Partículas manualmente si se desea -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-red-400 font-medium">Protones (Núcleo):</span>
+                            <span id="val-protons" class="text-slate-300">1</span>
+                        </div>
+                        <input type="range" id="slide-protons" min="1" max="136" value="1" oninput="window.updateCustomParticle('protons', this.value)" class="w-full accent-red-500 bg-slate-700 h-2 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-blue-300 font-medium">Neutrones (Núcleo):</span>
+                            <span id="val-neutrons" class="text-slate-300">0</span>
+                        </div>
+                        <input type="range" id="slide-neutrons" min="0" max="180" value="0" oninput="window.updateCustomParticle('neutrons', this.value)" class="w-full accent-blue-400 bg-slate-700 h-2 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-yellow-400 font-medium">Electrones (capas):</span>
+                            <span id="val-electrons" class="text-slate-300">1</span>
+                        </div>
+                        <input type="range" id="slide-electrons" min="1" max="136" value="1" oninput="window.updateCustomParticle('electrons', this.value)" class="w-full accent-yellow-400 bg-slate-700 h-2 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Estilos estéticos -->
+                    <div class="pt-2 border-t border-slate-700 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <label class="block text-slate-400 mb-1">Color Protones</label>
+                            <input type="color" id="color-protons" value="#ef4444" onchange="window.redraw()" class="w-full h-8 bg-transparent rounded cursor-pointer border border-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Color Neutrones</label>
+                            <input type="color" id="color-neutrons" value="#60a5fa" onchange="window.redraw()" class="w-full h-8 bg-transparent rounded cursor-pointer border border-slate-600">
+                        </div>
+                    </div>
+
+                    <!-- Botón para Guardar en Biblioteca -->
+                    <button onclick="window.saveToLibrary()" class="w-full mt-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-2.5 px-4 rounded-xl transition duration-200 transform active:scale-95 shadow-md flex items-center justify-center gap-2">
+                        💾 Guardar en Biblioteca
+                    </button>
+                    <p class="text-xs text-slate-500">Los rangos representan partículas del modelo, no una predicción experimental.</p>
+                </div>
+            </section>
+
+            <!-- SIMULADOR DE FACTORES Y REACCIONES -->
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-orange-300 mb-1">Factores y reacciones</h2>
+                <p class="text-xs text-slate-500 mb-4">Simulación educativa de cómo puede responder un átomo.</p>
+                <label for="factor-selector" class="block text-xs text-slate-400 mb-1">Factor aplicado</label>
+                <select id="factor-selector" onchange="window.selectFactor(this.value)" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-2 focus:ring-orange-400"></select>
+                <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Intensidad</span><span id="factor-intensity-value" class="text-orange-300">50%</span></div>
+                <input id="factor-intensity" type="range" min="1" max="100" value="50" oninput="window.updateFactorIntensity(this.value)" class="w-full accent-orange-400 bg-slate-700 h-2 rounded-lg appearance-none cursor-pointer">
+                <button type="button" onclick="window.applyFactor()" class="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 rounded-lg transition">Aplicar reacción</button>
+                <div id="factor-result" class="mt-4 p-3 rounded-lg bg-slate-900/70 border border-slate-700 text-sm"></div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-violet-300 mb-1">Comparar elementos</h2>
+                <p class="text-xs text-slate-500 mb-4">Compara dos átomos en condiciones neutras.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="compare-a" onchange="window.renderComparison()" class="bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm text-white"></select>
+                    <select id="compare-b" onchange="window.renderComparison()" class="bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm text-white"></select>
+                </div>
+                <div id="comparison-result" class="mt-4 text-sm"></div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-red-300 mb-1">Experimentos de colisión</h2>
+                <p class="text-xs text-slate-500 mb-3">Simula choques atómicos y aniquilación materia-antimateria.</p>
+                <select id="experiment-type" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white mb-2">
+                    <option value="collision">Chocar dos átomos</option>
+                    <option value="annihilation">Átomo contra antiátomo</option>
+                </select>
+                <select id="experiment-target" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white"></select>
+                <label class="block text-xs text-slate-400 mt-2">Velocidad del proyectil: <span id="collision-speed-value">50%</span></label>
+                <input id="collision-speed" type="range" min="1" max="100" value="50" oninput="window.updateCollisionParameter('speed', this.value)" class="w-full accent-red-400">
+                <label class="block text-xs text-slate-400 mt-2">Ángulo de colisión: <span id="collision-angle-value">0°</span></label>
+                <input id="collision-angle" type="range" min="-90" max="90" value="0" oninput="window.updateCollisionParameter('angle', this.value)" class="w-full accent-red-400">
+                <button type="button" onclick="window.runCollisionExperiment()" class="w-full mt-3 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg transition">Ejecutar experimento</button>
+                <div id="collision-result" class="mt-3 p-3 rounded-lg bg-slate-900/70 border border-slate-700 text-sm"></div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-pink-300 mb-1">Desintegración radiactiva</h2>
+                <p class="text-xs text-slate-500 mb-3">Observa cómo cambia el núcleo en cada tipo de emisión.</p>
+                <select id="decay-type" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white">
+                    <option value="alpha">Alfa (α)</option>
+                    <option value="beta-minus">Beta menos (β⁻)</option>
+                    <option value="beta-plus">Beta más (β⁺)</option>
+                    <option value="gamma">Gamma (γ)</option>
+                </select>
+                <button type="button" onclick="window.runDecayExperiment()" class="w-full mt-3 bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 rounded-lg transition">Simular desintegración</button>
+                <div class="grid grid-cols-2 gap-2 mt-3 text-xs"><div class="bg-slate-900/70 p-2 rounded"><span class="block text-slate-500">Vida media</span><strong id="half-life-value">No disponible</strong></div><div class="bg-slate-900/70 p-2 rounded"><span class="block text-slate-500">Actividad estimada</span><strong id="activity-value">0 Bq</strong></div></div>
+                <div id="decay-result" class="mt-3 p-3 rounded-lg bg-slate-900/70 border border-slate-700 text-sm"></div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-indigo-300 mb-1">Experimentos de partículas</h2>
+                <select id="particle-experiment" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white mt-2">
+                    <option value="pair">Producción de pares</option><option value="muon-decay">Decaimiento del muon</option><option value="annihilation-pair">Electrón-positrón</option><option value="feynman">Diagrama de interacción</option>
+                </select>
+                <button type="button" onclick="window.runParticleExperiment()" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg">Ejecutar</button>
+                <div id="particle-experiment-result" class="mt-3 p-3 rounded-lg bg-slate-900/70 text-sm"></div>
+            </section>
+        </main>
+
+        <!-- PANEL CENTRAL: El Canvas del Átomo -->
+        <section data-view="laboratory" class="col-span-12 lg:col-span-5 flex flex-col bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-700 items-center justify-start relative min-h-[450px]">
+            <div class="absolute top-4 left-4 right-4 flex items-center justify-between gap-3">
+                <span id="representation-label" class="text-xs font-bold px-2 py-1 bg-slate-900/60 rounded border border-slate-700 text-slate-300">Modelo de Bohr</span>
+                <label class="flex items-center gap-2 text-xs text-slate-400">Representación
+                    <select id="representation-selector" onchange="window.setRepresentation(this.value)" class="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                        <option value="bohr">Bohr: capas</option>
+                        <option value="rutherford">Rutherford: núcleo</option>
+                        <option value="thomson">Thomson: esfera positiva</option>
+                        <option value="quantum">Cuántico: capas y orbitales</option>
+                    </select>
+                </label>
+            </div>
+            <label class="self-end mt-10 mr-2 flex items-center gap-2 text-xs text-cyan-200 cursor-pointer"><input id="hologram-mode" type="checkbox" onchange="window.toggleHologram(this.checked)" class="accent-cyan-400"> Holograma</label>
+            
+            <!-- Contenedor del Canvas SVG Animado -->
+            <div id="atom-display" class="hologram-display w-full flex-none flex items-center justify-center mt-4 max-w-[400px] max-h-[400px]">
+                <svg id="atom-canvas" viewBox="0 0 400 400" class="w-full h-auto overflow-visible">
+                    <!-- El renderizado completo se hace vía JS con los datos calculados en Python -->
+                </svg>
+                <div class="hologram-scanlines"></div>
+            </div>
+
+            <!-- Leyenda del Canvas -->
+            <div class="flex flex-wrap justify-center gap-4 text-xs text-slate-300 mt-3">
+                <span class="flex items-center gap-1"><i class="w-3 h-3 rounded-full bg-red-500"></i>Protón</span>
+                <span class="flex items-center gap-1"><i class="w-3 h-3 rounded-full bg-blue-400"></i>Neutrón</span>
+                <span class="flex items-center gap-1"><i class="w-3 h-3 rounded-full bg-yellow-400"></i>Electrón</span>
+            </div>
+            <p class="text-[11px] text-slate-500 text-center mt-2 max-w-md">En el modelo cuántico, n=1 a n=7 son niveles principales, no órbitas clásicas. Los orbitales describen zonas de probabilidad.</p>
+        </section>
+
+        <!-- PANEL DERECHO: Biblioteca y estado -->
+        <aside data-view="laboratory" class="col-span-12 lg:col-span-3 flex flex-col gap-6">
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="panel-title text-lg font-bold text-amber-300 mb-3">Estado del modelo</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-slate-400">Carga neta:</span><strong id="net-charge">0</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Número másico:</span><strong id="mass-number">1</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Capas ocupadas:</span><strong id="shell-count">1</strong></div>
+                </div>
+                <p id="status-message" class="text-xs text-slate-400 mt-4 border-t border-slate-700 pt-3">Átomo neutro</p>
+                <div class="mt-3 border-t border-slate-700 pt-3">
+                    <div class="grid grid-cols-[1fr_auto] gap-y-2 items-center text-xs mt-2"><span class="text-slate-500">Vatios</span><strong id="energy-rate" class="text-right text-yellow-300 tabular-nums">0 W</strong><span class="text-slate-500">Julios/segundo</span><strong id="energy-joules" class="text-right text-slate-300 tabular-nums">0 J/s</strong><span class="text-slate-500">Calorías/segundo</span><strong id="energy-calories" class="text-right text-slate-300 tabular-nums">0 cal/s</strong><span class="text-slate-500">Gigajulios/segundo</span><strong id="energy-gigajoules" class="text-right text-slate-300 tabular-nums">0 GJ/s</strong></div>
+                    <p id="energy-detail" class="text-[11px] text-slate-500 mt-1">Sin proceso activo.</p>
+                </div>
+                <div class="mt-4 border-t border-slate-700 pt-3">
+                    <div class="flex justify-between items-center gap-3">
+                        <span class="text-slate-400 text-sm">Estabilidad nuclear</span>
+                        <strong id="stability-label" class="text-sm status-unknown">Sin evaluar</strong>
+                    </div>
+                    <p id="stability-detail" class="text-xs text-slate-400 mt-2">Ajusta protones y neutrones para obtener una estimación.</p>
+                    <div class="h-2 bg-slate-700 rounded-full mt-3 overflow-hidden"><div id="stability-meter" class="h-full bg-amber-400 transition-all" style="width: 0%"></div></div>
+                </div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700 flex-1">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-bold text-emerald-300">Biblioteca</h2>
+                    <button type="button" onclick="window.clearLibrary()" class="text-xs text-slate-400 hover:text-white">Limpiar</button>
+                </div>
+                <div id="library-container" class="space-y-2 text-sm text-slate-400">
+                    <p>No hay modelos guardados.</p>
+                </div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-lg font-bold text-cyan-300 mb-3">Datos científicos</h2>
+                <div id="scientific-data" class="space-y-2 text-sm"></div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-lg font-bold text-emerald-300 mb-2">Gráficas del modelo</h2>
+                <p class="text-xs text-slate-500 mb-2">Comparación normalizada de propiedades actuales.</p>
+                <canvas id="model-chart" width="340" height="190" class="w-full bg-slate-900 rounded-lg"></canvas>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-lg font-bold text-sky-300 mb-2">Simulación temporal</h2>
+                <label class="text-xs text-slate-400">Tiempo: <strong id="time-value">0 s</strong></label>
+                <input id="time-slider" type="range" min="0" max="100" value="0" oninput="window.updateTimeSimulation(this.value)" class="w-full accent-sky-400">
+                <div id="time-result" class="text-xs text-slate-400 mt-2">Desplaza el tiempo para observar la actividad.</div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-bold text-orange-300">Registro de experimentos</h2>
+                    <div class="flex gap-2"><button type="button" onclick="window.generateReport()" class="text-xs text-orange-200 hover:text-white">Generar informe</button><button type="button" onclick="window.exportExperiments()" class="text-xs text-orange-200 hover:text-white">CSV</button><button type="button" onclick="window.printReport()" class="text-xs text-orange-200 hover:text-white">PDF</button></div>
+                </div>
+                <textarea id="experiment-observation" rows="2" placeholder="Observación del experimento..." class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white mb-3"></textarea>
+                <div id="experiment-log" class="space-y-2 text-xs text-slate-400 max-h-48 overflow-y-auto"></div>
+                <button type="button" onclick="window.clearExperiments()" class="mt-3 text-xs text-slate-500 hover:text-white">Borrar registro</button>
+                <div id="generated-report" class="hidden mt-4 p-4 bg-white text-slate-900 rounded-lg text-sm"></div>
+            </section>
+            <section class="bg-slate-800 p-5 rounded-xl shadow-lg border border-slate-700">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <h2 class="panel-title text-lg font-bold text-cyan-300">Referencias</h2>
+                        <p class="text-xs text-slate-500 mt-1">Fuentes para ampliar el modelo</p>
+                    </div>
+                </div>
+                <input id="reference-search" type="search" placeholder="Buscar tema o fuente..." oninput="window.filterReferences(this.value)" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white mb-3 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                <div id="references-container" class="space-y-2"></div>
+            </section>
+        </aside>
+    </div>
+
+    <script>
+        const ELEMENTS = [
+            { z: 1, symbol: 'H', name: 'Hidrógeno', mass: 1.008, group: 1, period: 1, config: '1s¹', isotopes: [0, 1, 2] },
+            { z: 2, symbol: 'He', name: 'Helio', mass: 4.003, group: 18, period: 1, config: '1s²', isotopes: [1, 2] },
+            { z: 6, symbol: 'C', name: 'Carbono', mass: 12.011, group: 14, period: 2, config: '1s² 2s² 2p²', isotopes: [6, 7, 8] },
+            { z: 7, symbol: 'N', name: 'Nitrógeno', mass: 14.007, group: 15, period: 2, config: '1s² 2s² 2p³', isotopes: [7, 8] },
+            { z: 8, symbol: 'O', name: 'Oxígeno', mass: 15.999, group: 16, period: 2, config: '1s² 2s² 2p⁴', isotopes: [8, 9, 10] },
+            { z: 11, symbol: 'Na', name: 'Sodio', mass: 22.990, group: 1, period: 3, config: '[Ne] 3s¹', isotopes: [12, 13] },
+            { z: 17, symbol: 'Cl', name: 'Cloro', mass: 35.45, group: 17, period: 3, config: '[Ne] 3s² 3p⁵', isotopes: [18, 20] },
+            { z: 26, symbol: 'Fe', name: 'Hierro', mass: 55.845, group: 8, period: 4, config: '[Ar] 3d⁶ 4s²', isotopes: [28, 30, 32] },
+            { z: 29, symbol: 'Cu', name: 'Cobre', mass: 63.546, group: 11, period: 4, config: '[Ar] 3d¹⁰ 4s¹', isotopes: [34, 36] },
+            { z: 79, symbol: 'Au', name: 'Oro', mass: 196.967, group: 11, period: 6, config: '[Xe] 4f¹⁴ 5d¹⁰ 6s¹', isotopes: [118] }
+        ];
+        const PERIODIC_NAMES = `H:Hidrógeno|He:Helio|Li:Litio|Be:Berilio|B:Boro|C:Carbono|N:Nitrógeno|O:Oxígeno|F:Flúor|Ne:Neón|Na:Sodio|Mg:Magnesio|Al:Aluminio|Si:Silicio|P:Fósforo|S:Azufre|Cl:Cloro|Ar:Argón|K:Potasio|Ca:Calcio|Sc:Escandio|Ti:Titanio|V:Vanadio|Cr:Cromo|Mn:Manganeso|Fe:Hierro|Co:Cobalto|Ni:Níquel|Cu:Cobre|Zn:Zinc|Ga:Galio|Ge:Germanio|As:Arsénico|Se:Selenio|Br:Bromo|Kr:Kriptón|Rb:Rubidio|Sr:Estroncio|Y:Itrio|Zr:Circón|Nb:Niobio|Mo:Molibdeno|Tc:Tecnecio|Ru:Rutenio|Rh:Rodio|Pd:Paladio|Ag:Plata|Cd:Cadmio|In:Indio|Sn:Estaño|Sb:Antimonio|Te:Telurio|I:Yodo|Xe:Xenón|Cs:Cesio|Ba:Bario|La:Lantano|Ce:Cerio|Pr:Praseodimio|Nd:Neodimio|Pm:Prometio|Sm:Samario|Eu:Europio|Gd:Gadolinio|Tb:Terbio|Dy:Disprosio|Ho:Holmio|Er:Erbio|Tm:Tulio|Yb:Iterbio|Lu:Lutecio|Hf:Hafnio|Ta:Tantalio|W:Wolframio|Re:Renio|Os:Osmio|Ir:Iridio|Pt:Platino|Au:Oro|Hg:Mercurio|Tl:Talio|Pb:Plomo|Bi:Bismuto|Po:Polonio|At:Astato|Rn:Radón|Fr:Francio|Ra:Radio|Ac:Actinio|Th:Torio|Pa:Protactinio|U:Uranio|Np:Neptunio|Pu:Plutonio|Am:Americio|Cm:Curio|Bk:Berkelio|Cf:Californio|Es:Einstenio|Fm:Fermio|Md:Mendelevio|No: Nobelio|Lr:Lawrencio|Rf:Rutherfordio|Db:Dubnio|Sg:Seaborgio|Bh:Bohrio|Hs:Hasio|Mt:Meitnerio|Ds:Darmstadtio|Rg:Roentgenio|Cn:Copernicio|Nh:Nihonio|Fl:Flerovio|Mc:Moscovio|Lv:Livermorio|Ts:Teneso|Og:Oganesón`.split('|').map(item => item.split(':'));
+        const SYNTHETIC_Z = new Set([43, 61, ...Array.from({ length: 26 }, (_, index) => index + 93)]);
+        const ARTIFICIAL_ISOTOPES = new Map(Object.entries({
+            1: [3], 6: [11, 14], 7: [13], 8: [15], 11: [22, 24], 15: [32], 16: [35], 17: [36],
+            19: [42], 20: [45], 26: [59], 27: [60], 28: [63], 29: [64], 30: [65], 36: [85],
+            37: [82], 38: [89, 90], 43: [99], 47: [110], 53: [131], 54: [133], 55: [137],
+            61: [147], 84: [210], 85: [211], 86: [222], 87: [223], 88: [226], 91: [231],
+            92: [239], 93: [239], 94: [239], 95: [241], 96: [242], 97: [243], 98: [249],
+            99: [252], 100: [257], 101: [258], 102: [259], 103: [262], 104: [267], 105: [268],
+            106: [269], 107: [270], 108: [277], 109: [278], 110: [281], 111: [282], 112: [285],
+            113: [286], 114: [289], 115: [290], 116: [293], 117: [294], 118: [294]
+        }).map(([z, masses]) => [Number(z), masses]));
+        const CATEGORY_GROUPS = [
+            { title: 'Metales alcalinos', color: 'text-red-300', z: [3, 11, 19, 37, 55, 87] },
+            { title: 'Metales alcalinotérreos', color: 'text-orange-300', z: [4, 12, 20, 38, 56, 88] },
+            { title: 'Metales de transición', color: 'text-yellow-300', z: [...Array.from({ length: 10 }, (_, i) => i + 21), ...Array.from({ length: 10 }, (_, i) => i + 39), ...Array.from({ length: 9 }, (_, i) => i + 72), ...Array.from({ length: 9 }, (_, i) => i + 104)] },
+            { title: 'Lantánidos', color: 'text-pink-300', z: Array.from({ length: 15 }, (_, i) => i + 57) },
+            { title: 'Actínidos', color: 'text-fuchsia-300', z: Array.from({ length: 15 }, (_, i) => i + 89) },
+            { title: 'Metales postransición', color: 'text-blue-300', z: [13, 31, 49, 50, 81, 82, 83, 84, 113, 114, 115, 116] },
+            { title: 'Metaloides', color: 'text-cyan-300', z: [5, 14, 32, 33, 51, 52] },
+            { title: 'No metales', color: 'text-green-300', z: [1, 6, 7, 8, 15, 16, 34] },
+            { title: 'Halógenos', color: 'text-lime-300', z: [9, 17, 35, 53, 85, 117] },
+            { title: 'Gases nobles', color: 'text-purple-300', z: [2, 10, 18, 36, 54, 86, 118] },
+            { title: 'Elementos teóricos', color: 'text-amber-300', z: Array.from({ length: 18 }, (_, i) => i + 119) }
+        ];
+        const PERIODIC_LAYOUT = [
+            [1, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 2],
+            [3, 4, null, null, null, null, null, null, null, null, null, null, 5, 6, 7, 8, 9, 10],
+            [11, 12, null, null, null, null, null, null, null, null, null, null, 13, 14, 15, 16, 17, 18],
+            Array.from({ length: 18 }, (_, index) => index + 19),
+            Array.from({ length: 18 }, (_, index) => index + 37),
+            [55, 56, null, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86],
+            [87, 88, null, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118]
+        ];
+        const DEFAULT_MASS_NUMBERS = [0, 1, 4, 7, 9, 11, 12, 14, 16, 19, 20, 23, 24, 27, 28, 31, 32, 35, 40, 39, 40, 45, 48, 51, 52, 55, 56, 59, 58, 63, 65, 70, 74, 75, 80, 79, 84, 85, 88, 89, 90, 93, 96, 98, 101, 103, 106, 108, 112, 115, 119, 121, 127, 127, 131, 133, 137, 138, 139, 140, 141, 144, 145, 150, 152, 157, 159, 163, 165, 167, 169, 173, 175, 178, 181, 184, 186, 190, 192, 195, 197, 201, 204, 207, 209, 210, 211, 220, 223, 226, 227, 232, 231, 238, 237, 244, 243, 247, 247, 251, 252, 257, 258, 259, 262, 267, 268, 269, 270, 277, 278, 281, 282, 285, 286, 289, 290, 293, 294, 294];
+        const PERIODIC_ELEMENTS = PERIODIC_NAMES.map(([symbol, name], index) => {
+            const z = index + 1;
+            const position = PERIODIC_LAYOUT.reduce((found, row, period) => found || (row.includes(z) ? { group: row.indexOf(z) + 1, period: period + 1 } : null), null);
+            return { z, symbol, name: name.trim(), mass: DEFAULT_MASS_NUMBERS[z] || z, group: position?.group || 3, period: position?.period || (z < 72 ? 6 : 7), config: 'No disponible', isotopes: [], synthetic: SYNTHETIC_Z.has(z) };
+        });
+        ELEMENTS.forEach(element => Object.assign(PERIODIC_ELEMENTS[element.z - 1], element));
+        const SYSTEMATIC_THEORETICAL_NAMES = [
+            ['Uue', 'Ununenio'], ['Ubn', 'Unbinilio'], ['Ubu', 'Unbiunio'], ['Ubb', 'Unbibio'],
+            ['Ubt', 'Unbitrio'], ['Ubq', 'Unbiquadio'], ['Ubp', 'Unbipentio'], ['Ubh', 'Unbihexio'],
+            ['Ubs', 'Unbiseptio'], ['Ubo', 'Unbioctio'], ['Ube', 'Unbiennio'], ['Utn', 'Untricio'],
+            ['Utu', 'Untriunio'], ['Utb', 'Untribio'], ['Utt', 'Untritrio'], ['Utq', 'Untriquadio'],
+            ['Utp', 'Untripentio'], ['Uth', 'Untrihexio']
+        ];
+        PERIODIC_ELEMENTS.push(...Array.from({ length: 18 }, (_, index) => {
+            const z = index + 119;
+            const [symbol, name] = SYSTEMATIC_THEORETICAL_NAMES[index];
+            return { z, symbol, name, mass: z * 2, group: ((index + 3) % 18) + 1, period: 8, config: 'No disponible', isotopes: [], synthetic: false, theoretical: true, provisionalName: true };
+        }));
+        const REFERENCES = [
+            { title: 'Tabla periódica de los elementos', source: 'IUPAC', topic: 'elementos, número atómico, masa', url: 'https://iupac.org/what-we-do/periodic-table-of-elements/' },
+            { title: 'Chart of the Nuclides', source: 'IAEA', topic: 'isótopos, estabilidad, núcleos', url: 'https://www-nds.iaea.org/relnsd/vcharthtml/VChartHTML.html' },
+            { title: 'Nuclear Wallet Cards', source: 'NNDC / Brookhaven', topic: 'isótopos, masas, desintegración', url: 'https://www.nndc.bnl.gov/nudat3/' },
+            { title: 'Conceptos de radiactividad', source: 'Khan Academy', topic: 'radiactividad, núcleo, partículas', url: 'https://es.khanacademy.org/science/physics/quantum-physics' }
+        ];
+        const KNOWN_STABLE_ISOTOPES = new Set(['1:0', '1:1', '2:1', '2:2', '6:6', '6:7', '7:7', '8:8', '8:10', '11:12', '17:18', '26:30', '29:34']);
+        let model = { protons: 1, neutrons: 0, electrons: 1 };
+        let selected = ELEMENTS[0];
+        let customName = '';
+        let representation = 'bohr';
+        let activeFactor = 'temperature';
+        let factorIntensity = 50;
+        let factorApplied = false;
+        let antimatterMode = false;
+        let collisionExperiment = null;
+        let decayExperiment = null;
+        let collisionParameters = { speed: 50, angle: 0 };
+        let energyRate = 0;
+        let energySource = 'Sin proceso activo.';
+        const FACTORS = {
+            temperature: { name: 'Temperatura', reaction: 'Excitación térmica', what: 'El calor aporta energía a los electrones. Algunos saltan temporalmente a un nivel superior.', effect: 'Al regresar al nivel anterior, liberan esa energía como luz o calor. El núcleo no cambia.' },
+            pressure: { name: 'Presión y colisiones', reaction: 'Compresión de un gas', what: 'Al aumentar la presión, los átomos quedan más cerca y chocan con mayor frecuencia.', effect: 'Aumentan las colisiones y pueden formarse enlaces; la presión por sí sola no cambia el núcleo.' },
+            light: { name: 'Luz o radiación', reaction: 'Absorción de un fotón', what: 'Un fotón entrega su energía a un electrón. Si la energía es suficiente, el electrón puede escapar.', effect: 'Se produce excitación, fluorescencia o ionización del átomo.' },
+            electricity: { name: 'Electricidad', reaction: 'Ionización eléctrica', what: 'El campo eléctrico empuja o arranca electrones del átomo.', effect: 'El átomo se convierte en un ion: cambia su carga, pero el elemento sigue teniendo el mismo número de protones.' },
+            collision: { name: 'Colisión con otros átomos', reaction: 'Interacción química', what: 'Dos átomos chocan y sus electrones externos se reorganizan, comparten o transfieren.', effect: 'Puede formarse una molécula o un enlace químico sin transformar los núcleos.' },
+            particle: { name: 'Neutrones y partículas', reaction: 'Reacción nuclear', what: 'Una partícula entra en el núcleo y puede añadir un neutrón o transferir energía.', effect: 'Puede aparecer un isótopo nuevo, radiactividad o una transmutación.' },
+            magnetic: { name: 'Campo magnético', reaction: 'Interacción con el movimiento electrónico', what: 'El campo desvía cargas en movimiento y modifica la orientación del espín electrónico.', effect: 'Puede separar niveles de energía, pero normalmente no cambia la identidad del elemento.' }
+        };
+        const PARTICLES = [
+            { name: 'Electrón', symbol: 'e⁻', type: 'Leptones', charge: '-1', mass: '0.511 MeV/c²', interaction: 'Electromagnética y débil', role: 'Forma enlaces y determina la carga del átomo.' },
+            { name: 'Muon', symbol: 'μ⁻', type: 'Leptones', charge: '-1', mass: '105.7 MeV/c²', interaction: 'Electromagnética y débil', role: 'Leptón pesado e inestable, parecido al electrón.' },
+            { name: 'Tauón', symbol: 'τ⁻', type: 'Leptones', charge: '-1', mass: '1776.9 MeV/c²', interaction: 'Electromagnética y débil', role: 'Leptón cargado más pesado; se desintegra rápidamente.' },
+            { name: 'Neutrino electrónico', symbol: 'νₑ', type: 'Leptones', charge: '0', mass: 'Muy pequeña', interaction: 'Débil y gravitatoria', role: 'Atraviesa la materia casi sin interactuar.' },
+            { name: 'Neutrino muónico', symbol: 'νμ', type: 'Leptones', charge: '0', mass: 'Muy pequeña', interaction: 'Débil y gravitatoria', role: 'Acompaña a procesos donde aparece el muon.' },
+            { name: 'Neutrino tauónico', symbol: 'ντ', type: 'Leptones', charge: '0', mass: 'Muy pequeña', interaction: 'Débil y gravitatoria', role: 'Acompaña a procesos donde aparece el tauón.' },
+            { name: 'Quark arriba', symbol: 'u', type: 'Quarks', charge: '+2/3', mass: '2.2 MeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Forma protones y neutrones junto al quark abajo.' },
+            { name: 'Quark abajo', symbol: 'd', type: 'Quarks', charge: '-1/3', mass: '4.7 MeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Componente esencial de protones y neutrones.' },
+            { name: 'Quark extraño', symbol: 's', type: 'Quarks', charge: '-1/3', mass: '96 MeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Aparece en hadrones extraños e interacciones de alta energía.' },
+            { name: 'Quark encanto', symbol: 'c', type: 'Quarks', charge: '+2/3', mass: '1.27 GeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Quark pesado observado en colisionadores.' },
+            { name: 'Quark cima', symbol: 't', type: 'Quarks', charge: '+2/3', mass: '172.8 GeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Quark más pesado y muy inestable.' },
+            { name: 'Quark fondo', symbol: 'b', type: 'Quarks', charge: '-1/3', mass: '4.18 GeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Participa en hadrones B y desintegraciones.' },
+            { name: 'Fotón', symbol: 'γ', type: 'Bosones', charge: '0', mass: '0', interaction: 'Electromagnética', role: 'Transporta la fuerza electromagnética y la luz.' },
+            { name: 'Gluón', symbol: 'g', type: 'Bosones', charge: '0', mass: '0', interaction: 'Fuerte', role: 'Mantiene unidos a los quarks.' },
+            { name: 'Bosón W', symbol: 'W⁺/W⁻', type: 'Bosones', charge: '±1', mass: '80.4 GeV/c²', interaction: 'Débil', role: 'Interviene en desintegraciones beta.' },
+            { name: 'Bosón Z', symbol: 'Z⁰', type: 'Bosones', charge: '0', mass: '91.2 GeV/c²', interaction: 'Débil', role: 'Transporta la interacción débil neutral.' },
+            { name: 'Bosón de Higgs', symbol: 'H⁰', type: 'Bosones', charge: '0', mass: '125.25 GeV/c²', interaction: 'Campo de Higgs', role: 'Está asociado al mecanismo que da masa a partículas elementales.' },
+            { name: 'Protón', symbol: 'p⁺', type: 'Compuestas', charge: '+1', mass: '938.3 MeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Núcleo del hidrógeno, formado por tres quarks.' },
+            { name: 'Neutrón', symbol: 'n⁰', type: 'Compuestas', charge: '0', mass: '939.6 MeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Contribuye a la masa y estabilidad del núcleo.' },
+            { name: 'Pión', symbol: 'π', type: 'Compuestas', charge: '0/±1', mass: '135-140 MeV/c²', interaction: 'Fuerte', role: 'Mesón que participa en la descripción de la fuerza nuclear residual.' }
+            ,{ name: 'Positrón', symbol: 'e⁺', type: 'Antipartículas', charge: '+1', mass: '0.511 MeV/c²', interaction: 'Electromagnética y débil', role: 'Antipartícula del electrón; puede aniquilarse con él.' }
+            ,{ name: 'Antimuon', symbol: 'μ⁺', type: 'Antipartículas', charge: '+1', mass: '105.7 MeV/c²', interaction: 'Electromagnética y débil', role: 'Antipartícula del muon.' }
+            ,{ name: 'Antiprotón', symbol: 'p⁻', type: 'Antipartículas', charge: '-1', mass: '938.3 MeV/c²', interaction: 'Fuerte, electromagnética y débil', role: 'Antipartícula del protón.' }
+            ,{ name: 'Antineutrino', symbol: 'ν̄', type: 'Antipartículas', charge: '0', mass: 'Muy pequeña', interaction: 'Débil y gravitatoria', role: 'Antipartícula de un neutrino.' }
+        ];
+        const SCIENTIFIC_DATA = {
+            1: { state: 'Gas', electronegativity: '2.20', ionization: '1312 kJ/mol', oxidation: '+1, -1', decay: 'Estable (H-1)' },
+            6: { state: 'Sólido', electronegativity: '2.55', ionization: '1086 kJ/mol', oxidation: '+2, +4, -4', decay: 'C-14: beta, 5730 años' },
+            8: { state: 'Gas', electronegativity: '3.44', ionization: '1314 kJ/mol', oxidation: '-2', decay: 'Estable (O-16)' },
+            11: { state: 'Sólido', electronegativity: '0.93', ionization: '496 kJ/mol', oxidation: '+1', decay: 'Estable (Na-23)' },
+            17: { state: 'Gas', electronegativity: '3.16', ionization: '1251 kJ/mol', oxidation: '-1, +1, +5, +7', decay: 'Estable (Cl-35)' },
+            26: { state: 'Sólido', electronegativity: '1.83', ionization: '762 kJ/mol', oxidation: '+2, +3', decay: 'Estable (Fe-56)' },
+            79: { state: 'Sólido', electronegativity: '2.54', ionization: '890 kJ/mol', oxidation: '+1, +3', decay: 'Estable (Au-197)' }
+        };
+        const $ = id => document.getElementById(id);
+
+        function shellDistribution(count) {
+            const shells = [];
+            let remaining = count;
+            for (let shell = 1; remaining > 0 && shell <= 7; shell += 1) {
+                const capacity = 2 * shell * shell;
+                const current = Math.min(remaining, capacity);
+                shells.push(current);
+                remaining -= current;
+            }
+            return shells;
+        }
+
+        function selectElement(value) {
+            selected = PERIODIC_ELEMENTS.find(element => element.z === Number(value)) || PERIODIC_ELEMENTS[0];
+            model = { protons: selected.z, neutrons: Math.max(0, Math.round(selected.mass) - selected.z), electrons: selected.z };
+            ['protons', 'neutrons', 'electrons'].forEach(key => {
+                $("slide-" + key).value = model[key];
+                $("val-" + key).textContent = model[key];
+            });
+            updateDetails();
+            redraw();
+            renderPeriodicTable();
+        }
+
+        function toggleAntimatter(enabled) {
+            antimatterMode = enabled;
+            updateDetails();
+            redraw();
+        }
+
+        function renderPeriodicTable() {
+            const buttonFor = (z, extraClass = '') => {
+                if (!z) return '<span></span>';
+                const element = PERIODIC_ELEMENTS[z - 1];
+                const active = selected.z === z ? 'ring-2 ring-cyan-300 bg-cyan-900/70' : 'bg-slate-700 hover:bg-slate-600';
+                return `<button type="button" title="${element.name}" onclick="window.selectElement(${z})" class="periodic-cell ${active} ${extraClass} rounded-lg p-2 text-left border border-slate-600 transition focus:outline-none focus:ring-2 focus:ring-cyan-300"><span class="block text-[10px] text-slate-400">${z}</span><strong class="block text-lg text-cyan-200">${element.symbol}</strong><span class="block text-[10px] text-slate-400 truncate">${element.name}</span></button>`;
+            };
+            $('periodic-grid').innerHTML = PERIODIC_LAYOUT.map(row => row.map(z => buttonFor(z)).join('')).join('');
+            const inner = [...Array.from({ length: 15 }, (_, index) => index + 57), ...Array.from({ length: 15 }, (_, index) => index + 89)];
+            $('periodic-inner-grid').innerHTML = inner.map(z => buttonFor(z, 'bg-slate-800')).join('');
+            $('theoretical-grid').innerHTML = PERIODIC_ELEMENTS.slice(118).map(element => buttonFor(element.z, 'bg-amber-950/40')).join('');
+            $('synthetic-grid').innerHTML = PERIODIC_ELEMENTS.filter(element => element.synthetic).map(element => buttonFor(element.z, 'bg-fuchsia-950/40')).join('');
+            $('category-groups').innerHTML = CATEGORY_GROUPS.map(category => `<section class="bg-slate-900/40 rounded-lg p-3 border border-slate-700"><h4 class="${category.color} font-bold mb-2">${category.title}</h4><div class="periodic-grid">${category.z.map(z => buttonFor(z, 'bg-slate-800')).join('')}</div></section>`).join('');
+            const neutrons = Math.max(0, Math.round(selected.mass) - selected.z);
+            const isotopeText = selected.isotopes.length ? selected.isotopes.map(value => `${selected.symbol}-${selected.z + value}`).join(', ') : 'No disponible';
+            const artificialText = (ARTIFICIAL_ISOTOPES.get(selected.z) || []).map(mass => `${selected.symbol}-${mass}`).join(', ') || 'No disponible';
+            const statusNotice = selected.theoretical ? `<p class="text-xs text-amber-300 mt-3">Nombre sistemático provisional de la IUPAC. El elemento ${selected.z} aún no está confirmado experimentalmente ni tiene nombre oficial definitivo.</p>` : selected.synthetic ? '<p class="text-xs text-fuchsia-300 mt-3">Elemento artificial o sintético: se produce principalmente mediante reacciones nucleares en laboratorios o reactores.</p>' : '';
+            $('periodic-details').innerHTML = `<div class="flex flex-col md:flex-row md:items-start gap-5"><div class="flex items-center gap-4 min-w-[180px]"><span class="text-5xl font-black text-cyan-300">${selected.symbol}</span><div><h3 class="text-xl font-bold text-white">${selected.name}</h3><p class="text-sm text-slate-400">Elemento seleccionado · Z = ${selected.z}</p></div></div><div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm flex-1"><div><span class="block text-xs text-slate-500">Masa de referencia</span><strong class="text-white">${selected.z > 118 ? `[${Math.round(selected.mass)}]` : selected.mass}</strong></div><div><span class="block text-xs text-slate-500">Grupo / período</span><strong class="text-white">${selected.group} / ${selected.period}</strong></div><div><span class="block text-xs text-slate-500">Configuración</span><strong class="text-white">${selected.config}</strong></div><div><span class="block text-xs text-slate-500">Neutrones del modelo</span><strong class="text-white">${neutrons}</strong></div><div class="col-span-2 md:col-span-4"><span class="block text-xs text-slate-500">Isótopos naturales</span><strong class="text-white">${isotopeText}</strong></div><div class="col-span-2 md:col-span-4"><span class="block text-xs text-slate-500">Isótopos artificiales</span><strong class="text-fuchsia-200">${artificialText}</strong></div></div></div>${statusNotice}`;
+        }
+
+        function showView(view) {
+            document.querySelectorAll('[data-view]').forEach(element => element.classList.toggle('hidden', element.dataset.view !== view));
+            $('laboratory-tab').className = `px-3 py-2 rounded-md text-sm font-semibold ${view === 'laboratory' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`;
+            $('periodic-tab').className = `px-3 py-2 rounded-md text-sm font-semibold ${view === 'periodic' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`;
+            $('particles-tab').className = `px-3 py-2 rounded-md text-sm font-semibold ${view === 'particles' ? 'bg-violet-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`;
+        }
+
+        function filterParticles(category = 'Todos') {
+            const matches = category === 'Todos' ? PARTICLES : PARTICLES.filter(particle => particle.type === category);
+            $('particle-list').innerHTML = matches.map(particle => `<button type="button" onclick="window.selectParticle('${particle.symbol}')" class="text-left p-3 rounded-lg bg-slate-700 hover:bg-violet-900 border border-slate-600"><strong class="block text-lg text-violet-200">${particle.symbol}</strong><span class="block text-sm text-white">${particle.name}</span><span class="text-xs text-slate-400">${particle.type}</span></button>`).join('');
+        }
+
+        function selectParticle(symbol) {
+            const particle = PARTICLES.find(item => item.symbol === symbol) || PARTICLES[0];
+            $('particle-details').innerHTML = `<div class="flex flex-col md:flex-row gap-6 items-start"><div class="w-32 h-32 rounded-full bg-violet-950/60 border-2 border-violet-400 flex items-center justify-center"><span class="text-4xl font-black text-violet-200">${particle.symbol}</span></div><div class="flex-1"><h3 class="text-2xl font-bold text-white">${particle.name}</h3><p class="text-sm text-violet-300 mt-1">${particle.type}</p><div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm"><div><span class="block text-xs text-slate-500">Carga</span><strong>${particle.charge}</strong></div><div><span class="block text-xs text-slate-500">Masa</span><strong>${particle.mass}</strong></div><div class="col-span-2"><span class="block text-xs text-slate-500">Interacciones</span><strong>${particle.interaction}</strong></div></div><p class="mt-4 text-slate-300"><strong class="text-violet-200">Papel:</strong> ${particle.role}</p></div></div>`;
+        }
+
+        function runCollisionExperiment() {
+            const target = PERIODIC_ELEMENTS.find(element => element.z === Number($('experiment-target').value)) || PERIODIC_ELEMENTS[1];
+            const type = $('experiment-type').value;
+            collisionExperiment = { type, target, source: selected, ...collisionParameters };
+            const collisionEnergy = { collision: 1.2, annihilation: 8.99e16, photoelectric: 0.08, 'neutron-capture': 0.4, 'beta-decay': 0.000001, fusion: 3.5 };
+            energyRate = collisionEnergy[type] || 0;
+            energySource = `Experimento ${type}: velocidad ${collisionParameters.speed}% y ángulo ${collisionParameters.angle}°. Valor ilustrativo.`;
+            if (type === 'annihilation') {
+                $('collision-result').innerHTML = `<strong class="block text-red-200">Aniquilación simulada: ${selected.name} + anti${target.name}</strong><p class="mt-2 text-slate-300">Las partículas de materia y antimateria se encuentran. Protones y antiprotones, electrones y positrones pueden aniquilarse y transformar su masa en energía y otras partículas.</p><p class="mt-2 text-xs text-amber-300">La animación representa energía liberada; no calcula una explosión real ni una dosis de radiación.</p>`;
+            } else {
+                $('collision-result').innerHTML = `<strong class="block text-red-200">Choque simulado: ${selected.name} + ${target.name}</strong><p class="mt-2 text-slate-300">Los núcleos se acercan a gran velocidad. Dependiendo de la energía, pueden rebotar, excitarse, formar un isótopo o producir nuevas partículas.</p><p class="mt-2 text-xs text-slate-500">Es un modelo educativo: no predice una sección eficaz real.</p>`;
+            }
+            recordExperiment({ name: `Colisión: ${type}` }, `${selected.name} frente a ${target.name}`);
+            redraw();
+        }
+
+        function updateCollisionParameter(parameter, value) {
+            collisionParameters[parameter] = Number(value);
+            $(`collision-${parameter}-value`).textContent = `${value}${parameter === 'angle' ? '°' : '%'}`;
+        }
+
+        function updateCustomParticle(type, value) {
+            model[type] = Number(value);
+            $("val-" + type).textContent = model[type];
+            updateDetails();
+            redraw();
+        }
+
+        function updateDetails() {
+            const isCustom = model.protons !== selected.z;
+            $('elem-symbol').textContent = antimatterMode ? (isCustom ? 'X̄' : `${selected.symbol}̄`) : (isCustom ? 'X' : selected.symbol);
+            $('elem-name').textContent = antimatterMode ? `Anti${isCustom ? (customName || 'átomo') : selected.name}` : (isCustom ? (customName || 'Átomo personalizado') : selected.name);
+            $('elem-z').textContent = model.protons;
+            $('elem-mass').textContent = (model.protons + model.neutrons).toString();
+            $('elem-config').textContent = isCustom ? 'Modelo no calculado' : selected.config;
+            $('elem-group-period').textContent = isCustom ? 'Personalizado' : `${selected.group} / ${selected.period}`;
+            $('net-charge').textContent = antimatterMode ? model.electrons - model.protons : model.protons - model.electrons;
+            $('mass-number').textContent = model.protons + model.neutrons;
+            $('shell-count').textContent = shellDistribution(model.electrons).length;
+            $('status-message').textContent = antimatterMode ? (model.protons === model.electrons ? 'Antiátomo neutro' : 'Antiátomo con carga neta') : (model.protons === model.electrons ? 'Átomo neutro' : (model.protons > model.electrons ? 'Catión: carga positiva' : 'Anión: carga negativa'));
+            updateEnergyDisplay();
+            $('isotopes-container').innerHTML = isCustom ? '<span class="text-xs text-slate-500">Usa los controles para explorar este núcleo.</span>' : selected.isotopes.length ? selected.isotopes.map(neutrons => `<button type="button" class="px-2 py-1 rounded bg-slate-700 hover:bg-teal-700 text-xs" onclick="window.setIsotope(${neutrons})">${selected.symbol}-${selected.z + neutrons}</button>`).join('') : '<span class="text-xs text-slate-500">Datos de isótopos no disponibles.</span>';
+            const artificialMasses = ARTIFICIAL_ISOTOPES.get(selected.z) || [];
+            $('artificial-isotopes-container').innerHTML = artificialMasses.length ? artificialMasses.map(mass => `<button type="button" class="px-2 py-1 rounded bg-fuchsia-950/60 hover:bg-fuchsia-800 text-xs" onclick="window.setIsotope(${mass - selected.z})">${selected.symbol}-${mass}</button>`).join('') : '<span class="text-xs text-slate-500">No hay datos cargados para este elemento.</span>';
+            renderScientificData();
+            updateStability();
+            renderModelChart();
+        }
+
+        function updateEnergyDisplay() {
+            const formatted = energyRate === 0 ? '0 W' : energyRate >= 1000 ? `${energyRate.toExponential(2)} W` : `${energyRate.toFixed(6)} W`;
+            $('energy-rate').textContent = formatted;
+            $('energy-joules').textContent = `${energyRate === 0 ? '0' : energyRate.toExponential(3)} J/s`;
+            $('energy-calories').textContent = `${energyRate === 0 ? '0' : (energyRate / 4.184).toExponential(3)} cal/s`;
+            $('energy-gigajoules').textContent = `${energyRate === 0 ? '0' : (energyRate / 1e9).toExponential(3)} GJ/s`;
+            $('energy-detail').textContent = energySource;
+        }
+
+        function renderModelChart() {
+            const canvas = $('model-chart');
+            if (!canvas) return;
+            const context = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            context.clearRect(0, 0, width, height);
+            context.fillStyle = '#0f172a';
+            context.fillRect(0, 0, width, height);
+            const values = [model.protons / 136, model.neutrons / 180, model.electrons / 136, assessStability().score / 100];
+            const labels = ['Protones', 'Neutrones', 'Electrones', 'Estabilidad'];
+            const colors = ['#f87171', '#60a5fa', '#facc15', '#34d399'];
+            context.font = '11px sans-serif';
+            values.forEach((value, index) => {
+                const x = 18 + index * 80;
+                const barHeight = Math.max(3, value * 125);
+                context.fillStyle = '#334155';
+                context.fillRect(x, 145 - 125, 48, 125);
+                context.fillStyle = colors[index];
+                context.fillRect(x, 145 - barHeight, 48, barHeight);
+                context.fillStyle = '#cbd5e1';
+                context.fillText(labels[index], x - 2, 164);
+                context.fillText(`${Math.round(value * 100)}%`, x + 10, 138 - barHeight);
+            });
+            context.strokeStyle = '#475569';
+            context.beginPath();
+            context.moveTo(12, 145);
+            context.lineTo(width - 12, 145);
+            context.stroke();
+        }
+
+        function updateTimeSimulation(value) {
+            const seconds = Number(value);
+            const halfLife = 10;
+            const remaining = Math.pow(0.5, seconds / halfLife);
+            $('time-value').textContent = `${seconds} s`;
+            $('time-result').innerHTML = `Actividad relativa: <strong class="text-sky-300">${(remaining * 100).toFixed(2)}%</strong><br>Decaimientos relativos: <strong>${((1 - remaining) * 100).toFixed(2)}%</strong><br><span class="text-slate-500">Modelo educativo con vida media de referencia de ${halfLife} s.</span>`;
+        }
+
+        function runParticleExperiment() {
+            const type = $('particle-experiment').value;
+            const experiments = {
+                pair: ['Producción de pares', 'Un fotón con suficiente energía puede transformarse en un electrón y un positrón cerca de un núcleo.', 'γ → e⁻ + e⁺'],
+                'muon-decay': ['Decaimiento del muon', 'El muon se transforma en un electrón, un neutrino muónico y un antineutrino electrónico.', 'μ⁻ → e⁻ + νμ + ν̄ₑ'],
+                'annihilation-pair': ['Aniquilación electrón-positrón', 'El electrón y el positrón desaparecen como partículas materiales y producen fotones.', 'e⁻ + e⁺ → γ + γ'],
+                feynman: ['Interacción electromagnética', 'Dos partículas cargadas intercambian un fotón virtual; es una representación conceptual de la interacción.', 'e⁻ → e⁻ + γ* → e⁻']
+            };
+            const [title, explanation, equation] = experiments[type];
+            energyRate = type === 'annihilation-pair' ? 8.99e16 : type === 'pair' ? 1.02e6 : 0.000001;
+            energySource = `${title}: estimación educativa.`;
+            updateEnergyDisplay();
+            $('particle-experiment-result').innerHTML = `<strong class="block text-indigo-200">${title}</strong><p class="mt-2 text-slate-300">${explanation}</p><p class="mt-2 text-indigo-300 font-mono">${equation}</p>`;
+            recordExperiment({ name: title }, equation);
+        }
+
+        function runDecayExperiment() {
+            const type = $('decay-type').value;
+            const decayEnergy = { alpha: 0.000001, 'beta-minus': 0.0000001, 'beta-plus': 0.0000001, gamma: 0.00001 };
+            energyRate = decayEnergy[type];
+            energySource = `Desintegración ${type}: estimación educativa por segundo.`;
+            decayExperiment = type;
+            updateDecayMetrics(type);
+            let title;
+            let explanation;
+            let result;
+            if (type === 'alpha') {
+                if (model.protons < 2 || model.neutrons < 2) {
+                    result = 'Este núcleo no tiene suficientes protones y neutrones para representar una emisión alfa.';
+                } else {
+                    model.protons -= 2;
+                    model.neutrons -= 2;
+                    result = 'El núcleo emitió una partícula alfa: 2 protones y 2 neutrones.';
+                }
+                title = 'Desintegración alfa (α)';
+                explanation = 'El número atómico baja en 2 y el número másico baja en 4.';
+            } else if (type === 'beta-minus') {
+                if (model.neutrons < 1) result = 'No hay un neutrón disponible para esta simulación beta menos.';
+                else { model.neutrons -= 1; model.protons += 1; result = 'Un neutrón se transformó en protón, electrón y antineutrino.'; }
+                title = 'Desintegración beta menos (β⁻)';
+                explanation = 'El número atómico sube en 1 y el número másico permanece igual.';
+            } else if (type === 'beta-plus') {
+                if (model.protons < 2) result = 'El núcleo no tiene suficientes protones para esta simulación beta más.';
+                else { model.protons -= 1; model.neutrons += 1; result = 'Un protón se transformó en neutrón, positrón y neutrino.'; }
+                title = 'Desintegración beta más (β⁺)';
+                explanation = 'El número atómico baja en 1 y el número másico permanece igual.';
+            } else {
+                result = 'El núcleo emitió un fotón gamma: pierde energía, pero no cambia sus protones ni neutrones.';
+                title = 'Emisión gamma (γ)';
+                explanation = 'El número atómico y el número másico permanecen iguales.';
+            }
+            ['protons', 'neutrons'].forEach(key => { $(`slide-${key}`).value = model[key]; $(`val-${key}`).textContent = model[key]; });
+            updateDetails();
+            redraw();
+            recordExperiment({ name: title }, result);
+            $('decay-result').innerHTML = `<strong class="block text-pink-200">${title}</strong><p class="mt-2 text-slate-300">${result}</p><p class="mt-2 text-xs text-slate-500">${explanation}</p>`;
+        }
+
+        function updateDecayMetrics(type) {
+            const halfLives = { alpha: 'Variable según isótopo', 'beta-minus': 'Variable según isótopo', 'beta-plus': 'Variable según isótopo', gamma: 'Estado excitado: variable' };
+            const activity = { alpha: 1200, 'beta-minus': 850, 'beta-plus': 430, gamma: 180 };
+            $('half-life-value').textContent = halfLives[type];
+            $('activity-value').textContent = `${activity[type]} Bq (modelo)`;
+        }
+
+        function renderScientificData() {
+            const data = SCIENTIFIC_DATA[selected.z] || { state: selected.z > 118 ? 'No confirmado' : 'Consultar fuente', electronegativity: 'No disponible', ionization: 'No disponible', oxidation: 'Variable', decay: selected.z > 82 ? 'Radiactivo' : 'No disponible' };
+            $('scientific-data').innerHTML = `<div class="flex justify-between border-b border-slate-700 pb-1"><span class="text-slate-500">Estado a 20 °C</span><strong class="text-white">${data.state}</strong></div><div class="flex justify-between border-b border-slate-700 pb-1"><span class="text-slate-500">Electronegatividad</span><strong class="text-white">${data.electronegativity}</strong></div><div class="flex justify-between border-b border-slate-700 pb-1"><span class="text-slate-500">1.ª ionización</span><strong class="text-white">${data.ionization}</strong></div><div class="flex justify-between border-b border-slate-700 pb-1"><span class="text-slate-500">Estados de oxidación</span><strong class="text-white">${data.oxidation}</strong></div><div><span class="text-slate-500">Estabilidad / desintegración</span><strong class="block text-white">${data.decay}</strong></div><p class="text-[10px] text-slate-600 mt-3">Valores de referencia educativa; pueden depender del isótopo y las condiciones.</p>`;
+        }
+
+        function assessStability() {
+            const z = model.protons;
+            const ratio = model.neutrons / Math.max(z, 1);
+            if (KNOWN_STABLE_ISOTOPES.has(`${z}:${model.neutrons}`)) return { label: 'Estable conocido', className: 'status-stable', score: 100, detail: 'Este isótopo aparece entre los núcleos estables conocidos.' };
+            if (z > 82) return { label: 'Probablemente inestable', className: 'status-unstable', score: 20, detail: 'Los núcleos con Z mayor que 82 no tienen isótopos estables conocidos.' };
+            if (z === 0) return { label: 'No es un átomo', className: 'status-unknown', score: 0, detail: 'Un átomo necesita al menos un protón.' };
+            const target = z < 20 ? 1 : 1.35;
+            const distance = Math.abs(ratio - target);
+            if (distance < 0.12 && z + model.neutrons > 1) return { label: 'Zona estable probable', className: 'status-stable', score: 90, detail: `Relación N/Z = ${ratio.toFixed(2)}; compatible con una banda de estabilidad aproximada.` };
+            if (distance < 0.28) return { label: 'Inestable posible', className: 'status-unknown', score: 55, detail: `Relación N/Z = ${ratio.toFixed(2)}; podría ser radiactivo según el isótopo.` };
+            return { label: 'Probablemente inestable', className: 'status-unstable', score: 18, detail: `Relación N/Z = ${ratio.toFixed(2)}; se aleja de la banda de estabilidad.` };
+        }
+
+        function updateStability() {
+            const result = assessStability();
+            const label = $('stability-label');
+            label.textContent = result.label;
+            label.className = `text-sm ${result.className}`;
+            $('stability-detail').textContent = `${result.detail} Es una estimación educativa, no una predicción de vida media.`;
+            $('stability-meter').style.width = `${result.score}%`;
+            $('stability-meter').className = `h-full transition-all ${result.score >= 75 ? 'bg-emerald-400' : result.score >= 40 ? 'bg-amber-400' : 'bg-red-400'}`;
+        }
+
+        function setIsotope(neutrons) {
+            $('slide-neutrons').value = neutrons;
+            updateCustomParticle('neutrons', neutrons);
+        }
+
+        function selectFactor(value) {
+            activeFactor = value;
+            renderFactorResult('Listo para aplicar', FACTORS[value].reaction, FACTORS[value].what, FACTORS[value].effect);
+        }
+
+        function updateFactorIntensity(value) {
+            factorIntensity = Number(value);
+            $('factor-intensity-value').textContent = `${factorIntensity}%`;
+        }
+
+        function renderComparison() {
+            const first = PERIODIC_ELEMENTS.find(element => element.z === Number($('compare-a').value)) || PERIODIC_ELEMENTS[0];
+            const second = PERIODIC_ELEMENTS.find(element => element.z === Number($('compare-b').value)) || PERIODIC_ELEMENTS[1];
+            const firstShells = shellDistribution(first.z).length;
+            const secondShells = shellDistribution(second.z).length;
+            const difference = first.z === second.z ? 'Son el mismo elemento.' : first.z > second.z ? `${first.name} tiene ${first.z - second.z} protones más.` : `${second.name} tiene ${second.z - first.z} protones más.`;
+            $('comparison-result').innerHTML = `<div class="grid grid-cols-2 gap-2"><div class="p-3 rounded-lg bg-slate-700"><strong class="block text-violet-200">${first.symbol} · ${first.name}</strong><span class="block mt-2">Z: ${first.z}</span><span class="block">Masa: ${first.mass}</span><span class="block">Capas: ${firstShells}</span><span class="block">Grupo: ${first.group}</span></div><div class="p-3 rounded-lg bg-slate-700"><strong class="block text-violet-200">${second.symbol} · ${second.name}</strong><span class="block mt-2">Z: ${second.z}</span><span class="block">Masa: ${second.mass}</span><span class="block">Capas: ${secondShells}</span><span class="block">Grupo: ${second.group}</span></div></div><p class="mt-3 text-xs text-slate-400">${difference}</p>`;
+        }
+
+        function renderFactorResult(title, reaction, what, effect) {
+            $('factor-result').innerHTML = `<strong class="block text-orange-200">${title}</strong><p class="mt-2 text-xs uppercase tracking-wider text-slate-500">Qué sucede</p><p class="mt-1 text-slate-300">${what}</p><p class="mt-2 text-xs uppercase tracking-wider text-slate-500">Resultado</p><p class="mt-1 text-slate-400">${effect}</p>`;
+        }
+
+        function applyFactor() {
+            const factor = FACTORS[activeFactor];
+            factorApplied = true;
+            const factorEnergy = { temperature: 0.02, pressure: 0.01, light: 0.08, electricity: 0.05, collision: 0.12, particle: 0.2, magnetic: 0.005 };
+            energyRate = factorEnergy[activeFactor] * factorIntensity;
+            energySource = `${factor.name}: estimación educativa según intensidad.`;
+            let result = factor.reaction;
+            if (activeFactor === 'electricity') {
+                const change = Math.max(1, Math.round(factorIntensity / 35));
+                model.electrons = Math.max(1, model.electrons - change);
+                $('slide-electrons').value = model.electrons;
+                $('val-electrons').textContent = model.electrons;
+                result += ` Se han retirado ${change} electrón(es) en esta simulación.`;
+            } else if (activeFactor === 'particle') {
+                const addedNeutrons = Math.max(1, Math.round(factorIntensity / 25));
+                model.neutrons = Math.min(180, model.neutrons + addedNeutrons);
+                $('slide-neutrons').value = model.neutrons;
+                $('val-neutrons').textContent = model.neutrons;
+                result += ` El núcleo ha capturado ${addedNeutrons} neutrón(es) en esta simulación.`;
+            } else if (activeFactor === 'light' || activeFactor === 'temperature') {
+                setRepresentation('quantum');
+                result += ' La vista cuántica muestra mejor la excitación y la probabilidad electrónica.';
+            }
+            updateDetails();
+            redraw();
+            recordExperiment(factor, result);
+            renderFactorResult(`${factor.name} aplicada al ${factorIntensity}%`, result, factor.what, factor.effect);
+        }
+
+        function recordExperiment(factor, result) {
+            const records = JSON.parse(localStorage.getItem('atomic-experiments') || '[]');
+            records.unshift({ date: new Date().toLocaleString('es-ES'), element: `${selected.name} (${selected.symbol})`, factor: factor.name, intensity: factorIntensity, reaction: result, observation: $('experiment-observation')?.value || '', protons: model.protons, neutrons: model.neutrons, electrons: model.electrons });
+            localStorage.setItem('atomic-experiments', JSON.stringify(records.slice(0, 30)));
+            renderExperiments();
+        }
+
+        function renderExperiments() {
+            const records = JSON.parse(localStorage.getItem('atomic-experiments') || '[]');
+            $('experiment-log').innerHTML = records.length ? records.map(record => `<div class="border-b border-slate-700 pb-2"><strong class="text-orange-200">${record.element}</strong><span class="block">${record.factor} · ${record.intensity}%</span><span class="block text-slate-500">${record.date}</span></div>`).join('') : '<p>No hay experimentos registrados.</p>';
+        }
+
+        function clearExperiments() {
+            localStorage.removeItem('atomic-experiments');
+            renderExperiments();
+        }
+
+        function exportExperiments() {
+            const records = JSON.parse(localStorage.getItem('atomic-experiments') || '[]');
+            if (!records.length) return;
+            const headers = ['Fecha', 'Elemento', 'Factor', 'Intensidad', 'Reacción', 'Observación', 'Protones', 'Neutrones', 'Electrones'];
+            const rows = records.map(record => [record.date, record.element, record.factor, `${record.intensity}%`, record.reaction, record.observation || '', record.protons, record.neutrons, record.electrons]);
+            const csv = [headers, ...rows].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(';')).join('\n');
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+            link.download = 'registro-experimentos-atomicos.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function generateReport() {
+            const stability = assessStability();
+            const records = JSON.parse(localStorage.getItem('atomic-experiments') || '[]');
+            const latest = records[0];
+            const observation = $('experiment-observation')?.value || 'Sin observaciones escritas.';
+            const time = $('time-slider')?.value || 0;
+            const activity = $('activity-value')?.textContent || '0 Bq';
+            $('generated-report').innerHTML = `<h3 class="text-xl font-bold mb-3">Informe de laboratorio atómico</h3><p class="text-xs text-slate-500 mb-4">Generado: ${new Date().toLocaleString('es-ES')}</p><div class="grid grid-cols-2 gap-2"><p><strong>Elemento:</strong><br>${selected.name} (${selected.symbol})</p><p><strong>Modelo:</strong><br>${antimatterMode ? 'Antiátomo' : 'Átomo'} · ${representation}</p><p><strong>Protones:</strong><br>${model.protons}</p><p><strong>Neutrones:</strong><br>${model.neutrons}</p><p><strong>Electrones:</strong><br>${model.electrons}</p><p><strong>Carga neta:</strong><br>${antimatterMode ? model.electrons - model.protons : model.protons - model.electrons}</p><p><strong>Estabilidad:</strong><br>${stability.label}</p><p><strong>Energía estimada:</strong><br>${energyRate} W</p><p><strong>Tiempo simulado:</strong><br>${time} s</p><p><strong>Actividad:</strong><br>${activity}</p></div><div class="border-t border-slate-300 mt-4 pt-3"><strong>Último experimento:</strong><p>${latest ? `${latest.factor}: ${latest.reaction}` : 'No hay experimentos registrados.'}</p><strong>Observación:</strong><p>${observation}</p></div><p class="text-xs text-slate-500 mt-4">Este informe contiene resultados de una simulación educativa y no sustituye mediciones experimentales.</p>`;
+            $('generated-report').classList.remove('hidden');
+        }
+
+        function printReport() {
+            generateReport();
+            const report = $('generated-report').innerHTML;
+            const reportWindow = window.open('', '_blank', 'width=800,height=900');
+            if (!reportWindow) return;
+            reportWindow.document.write(`<html lang="es"><head><title>Informe de laboratorio atómico</title><style>body{font-family:Arial,sans-serif;color:#172033;max-width:760px;margin:40px auto;line-height:1.5}h3{color:#0f766e;border-bottom:2px solid #14b8a6;padding-bottom:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}p{margin:6px 0}strong{color:#334155}@media print{body{margin:20px}}</style></head><body>${report}</body></html>`);
+            reportWindow.document.close();
+            reportWindow.focus();
+            reportWindow.print();
+        }
+
+        function setRepresentation(value) {
+            representation = value;
+            const labels = { bohr: 'Modelo de Bohr', rutherford: 'Modelo de Rutherford', thomson: 'Modelo de Thomson', quantum: 'Modelo cuántico visual' };
+            $('representation-label').textContent = labels[value] || labels.bohr;
+            redraw();
+        }
+
+        function toggleHologram(enabled) {
+            $('atom-canvas').classList.toggle('hologram-active', enabled);
+            $('representation-label').textContent = enabled ? 'Proyección holográfica' : ({ bohr: 'Modelo de Bohr', rutherford: 'Modelo de Rutherford', thomson: 'Modelo de Thomson', quantum: 'Modelo cuántico visual' }[representation] || 'Modelo de Bohr');
+        }
+
+        function redraw() {
+            const svg = $('atom-canvas');
+            const protonColor = $('color-protons').value;
+            const neutronColor = $('color-neutrons').value;
+            const electronColor = antimatterMode ? '#f472b6' : '#facc15';
+            const shells = shellDistribution(model.electrons);
+            let content = '<defs><radialGradient id="nucleus"><stop stop-color="#f8fafc" stop-opacity=".35"/><stop offset="1" stop-color="#0f172a" stop-opacity=".2"/></radialGradient><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#60a5fa"/></marker></defs>';
+            if (antimatterMode) content += '<rect x="18" y="18" width="364" height="25" rx="7" fill="#581c87" fill-opacity=".8"/><text x="200" y="35" text-anchor="middle" fill="#f5d0fe" font-size="12" font-weight="bold">ANTIÁTOMO · ANTIMATERIA</text>';
+            const particles = Math.min(model.protons + model.neutrons, 100);
+            if (factorApplied) {
+                if (activeFactor === 'temperature') content += '<circle class="factor-effect" cx="200" cy="200" r="145" fill="none" stroke="#fb923c" stroke-width="5" stroke-opacity=".7" stroke-dasharray="8 12"><title>Excitación térmica</title></circle><text x="200" y="32" text-anchor="middle" fill="#fdba74" font-size="12">ENERGÍA TÉRMICA</text>';
+                if (activeFactor === 'pressure') content += '<circle class="factor-effect" cx="200" cy="200" r="135" fill="none" stroke="#60a5fa" stroke-width="3" stroke-dasharray="6 10"/><path class="factor-motion" d="M30 200 H145 M370 200 H255" stroke="#60a5fa" stroke-width="5" marker-end="url(#arrow)"/><text x="200" y="32" text-anchor="middle" fill="#93c5fd" font-size="12">PRESIÓN Y COLISIONES</text>';
+                if (activeFactor === 'collision') content += '<circle class="factor-effect" cx="200" cy="200" r="125" fill="none" stroke="#34d399" stroke-width="3" stroke-dasharray="2 8"/><path class="factor-motion" d="M35 120 L175 190 M365 280 L225 210" stroke="#34d399" stroke-width="4"/><text x="200" y="32" text-anchor="middle" fill="#6ee7b7" font-size="12">COLISIÓN ATÓMICA</text>';
+                if (activeFactor === 'light') content += '<path class="factor-effect" d="M25 70 L170 180" stroke="#fef08a" stroke-width="5" stroke-dasharray="10 8"/><path class="factor-effect" d="M375 70 L230 180" stroke="#fef08a" stroke-width="3" stroke-dasharray="10 8"/><text x="200" y="32" text-anchor="middle" fill="#fef08a" font-size="12">FOTONES INCIDENTES</text>';
+                if (activeFactor === 'electricity') content += '<path class="factor-effect" d="M170 45 L215 115 L185 115 L230 185" fill="none" stroke="#facc15" stroke-width="6"/><path class="factor-effect" d="M230 215 L275 285 L245 285 L290 355" fill="none" stroke="#facc15" stroke-width="5"/><text x="200" y="32" text-anchor="middle" fill="#fde047" font-size="12">IONIZACIÓN ELÉCTRICA</text>';
+                if (activeFactor === 'particle') content += '<path class="factor-motion" d="M25 200 H160" stroke="#f87171" stroke-width="5" stroke-dasharray="8 7"/><circle class="factor-effect" cx="42" cy="200" r="8" fill="#60a5fa"/><text x="200" y="32" text-anchor="middle" fill="#93c5fd" font-size="12">PARTÍCULA ENTRANTE</text>';
+                if (activeFactor === 'magnetic') content += '<path class="factor-effect" d="M70 120 Q200 20 330 120 M70 280 Q200 380 330 280" fill="none" stroke="#c084fc" stroke-width="4" stroke-dasharray="8 8"/><text x="200" y="32" text-anchor="middle" fill="#d8b4fe" font-size="12">CAMPO MAGNÉTICO</text>';
+            }
+            if (collisionExperiment) {
+                if (collisionExperiment.type === 'annihilation') content += '<g class="factor-effect"><circle cx="90" cy="200" r="28" fill="#f472b6" fill-opacity=".45" stroke="#f9a8d4"/><circle cx="310" cy="200" r="28" fill="#60a5fa" fill-opacity=".45" stroke="#93c5fd"/><path d="M125 200 H275" stroke="#fef08a" stroke-width="7" stroke-dasharray="12 8"/><path d="M200 150 L245 105 M200 250 L245 295 M200 150 L155 105 M200 250 L155 295" stroke="#fde047" stroke-width="4"/><text x="200" y="32" text-anchor="middle" fill="#fef08a" font-size="12" font-weight="bold">ANIQUILACIÓN · ENERGÍA</text></g>';
+                if (collisionExperiment.type === 'collision') content += '<g class="factor-motion"><circle cx="70" cy="200" r="24" fill="#ef4444" fill-opacity=".45" stroke="#fca5a5"/><circle cx="330" cy="200" r="24" fill="#60a5fa" fill-opacity=".45" stroke="#93c5fd"/><path d="M100 200 H170 M300 200 H230" stroke="#fb923c" stroke-width="5" stroke-dasharray="9 7"/><text x="200" y="32" text-anchor="middle" fill="#fdba74" font-size="12" font-weight="bold">CHOQUE DE NÚCLEOS</text></g>';
+            }
+            if (decayExperiment) {
+                const decayLabels = { alpha: 'EMISIÓN ALFA · PARTÍCULA α', 'beta-minus': 'EMISIÓN BETA⁻ · ELECTRÓN', 'beta-plus': 'EMISIÓN BETA⁺ · POSITRÓN', gamma: 'EMISIÓN GAMMA · FOTÓN' };
+                const decayColors = { alpha: '#f97316', 'beta-minus': '#60a5fa', 'beta-plus': '#f472b6', gamma: '#fde047' };
+                const decayPaths = { alpha: 'M200 200 L335 105', 'beta-minus': 'M200 200 L350 200', 'beta-plus': 'M200 200 L50 200', gamma: 'M200 200 L320 75 M200 200 L80 75' };
+                content += `<path class="factor-effect" d="${decayPaths[decayExperiment]}" stroke="${decayColors[decayExperiment]}" stroke-width="7" stroke-dasharray="12 8"/><circle class="factor-effect" cx="200" cy="200" r="48" fill="none" stroke="${decayColors[decayExperiment]}" stroke-width="3"/><text x="200" y="32" text-anchor="middle" fill="${decayColors[decayExperiment]}" font-size="12" font-weight="bold">${decayLabels[decayExperiment]}</text>`;
+            }
+            if (false) {
+                content += '<defs><radialGradient id="space-nucleus"><stop stop-color="#ffffff"/><stop offset=".35" stop-color="#67e8f9"/><stop offset="1" stop-color="#075985"/></radialGradient><filter id="soft-volume"><feGaussianBlur stdDeviation="3"/></filter></defs><ellipse class="orbital-volume" cx="200" cy="200" rx="132" ry="54" fill="#22d3ee" fill-opacity=".12" stroke="#67e8f9" stroke-width="10" transform="rotate(30 200 200)" filter="url(#soft-volume)"/><ellipse class="orbital-volume" cx="200" cy="200" rx="132" ry="54" fill="#a78bfa" fill-opacity=".12" stroke="#c4b5fd" stroke-width="10" transform="rotate(-30 200 200)" filter="url(#soft-volume)"/><path d="M200 72 C250 110 250 290 200 328 C150 290 150 110 200 72Z" fill="#34d399" fill-opacity=".1" stroke="#6ee7b7" stroke-width="8" filter="url(#soft-volume)"/><circle cx="200" cy="200" r="43" fill="url(#space-nucleus)" stroke="#e0f2fe" stroke-width="2"/><text x="200" y="205" text-anchor="middle" fill="#082f49" font-size="11" font-weight="bold">NÚCLEO</text><text x="200" y="365" text-anchor="middle" fill="#a5f3fc" font-size="11">Orbitales espaciales · arrastra para girar</text>';
+                for (let index = 0; index < Math.min(model.electrons * 2, 80); index += 1) {
+                    const angle = index * 2.39996;
+                    const radius = 62 + (index % 3) * 25;
+                    const x = 200 + Math.cos(angle) * radius;
+                    const y = 200 + Math.sin(angle) * radius * .45;
+                    content += `<circle class="quantum-particle" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${electronColor}"/>`;
+                }
+                svg.innerHTML = content;
+                return;
+            }
+            if (representation === 'thomson') {
+                content += '<circle cx="200" cy="200" r="105" fill="#38bdf8" fill-opacity=".18" stroke="#67e8f9" stroke-width="2"/><text x="200" y="325" text-anchor="middle" fill="#94a3b8" font-size="12">Carga positiva distribuida</text>';
+                for (let index = 0; index < Math.min(model.electrons, 80); index += 1) {
+                    const angle = index * 2.39996;
+                    const radius = Math.sqrt(index / Math.max(model.electrons, 1)) * 88;
+                    const x = 200 + Math.cos(angle) * radius;
+                    const y = 200 + Math.sin(angle) * radius;
+                    content += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${electronColor}"><title>${antimatterMode ? 'Positrón' : 'Electrón'} incrustado</title></circle>`;
+                }
+                svg.innerHTML = content;
+                return;
+            }
+            if (representation === 'rutherford') {
+                content += '<circle cx="200" cy="200" r="38" fill="url(#nucleus)" stroke="#f8fafc" stroke-width="2"/><text x="200" y="270" text-anchor="middle" fill="#94a3b8" font-size="12">Núcleo concentrado</text>';
+                for (let index = 0; index < Math.min(model.electrons, 80); index += 1) {
+                    const radius = 75 + (index % 4) * 25;
+                    const angle = index * 2.39996;
+                    const x = 200 + Math.cos(angle) * radius;
+                    const y = 200 + Math.sin(angle) * radius;
+                    content += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${electronColor}"><title>${antimatterMode ? 'Positrón' : 'Electrón'}</title></circle>`;
+                }
+                for (let index = 0; index < particles; index += 1) {
+                    const angle = index * 2.39996;
+                    const radius = Math.sqrt(index / Math.max(particles, 1)) * 29;
+                    const x = 200 + Math.cos(angle) * radius;
+                    const y = 200 + Math.sin(angle) * radius;
+                    content += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${particles > 60 ? 2.5 : 4}" fill="${index < model.protons ? protonColor : neutronColor}"/>`;
+                }
+                svg.innerHTML = content;
+                return;
+            }
+            if (representation === 'quantum') {
+                content += '<defs><radialGradient id="quantum-nucleus"><stop stop-color="#ffffff"/><stop offset=".35" stop-color="#38bdf8"/><stop offset="1" stop-color="#0f172a"/></radialGradient><filter id="quantum-blur"><feGaussianBlur stdDeviation="2.5"/></filter></defs>';
+                content += '<rect x="18" y="18" width="364" height="310" rx="18" fill="#07111f" stroke="#1e3a5f"/><text x="200" y="42" text-anchor="middle" fill="#bae6fd" font-size="11" font-weight="bold">NUBE DE PROBABILIDAD ELECTRÓNICA</text>';
+                const cloudColors = ['#67e8f9', '#93c5fd', '#c4b5fd', '#f0abfc', '#f9a8d4', '#fda4af', '#fdba74'];
+                for (let cloud = 0; cloud < 7; cloud += 1) {
+                    const occupied = shells[cloud] || 0;
+                    const radius = 36 + cloud * 17;
+                    const dots = occupied ? Math.min(occupied * 4, 34) : 8;
+                    for (let dot = 0; dot < dots; dot += 1) {
+                        const angle = dot * 2.39996 + cloud * .91;
+                        const spread = .35 + ((dot * 23 + cloud * 19) % 64) / 100;
+                        const x = 200 + Math.cos(angle) * radius * spread;
+                        const y = 180 + Math.sin(angle) * radius * spread * .72;
+                        const opacity = occupied ? .22 + ((dot * 11) % 65) / 100 : .06;
+                        content += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${occupied ? (dot % 5 === 0 ? 3.2 : 2.1) : 1.5}" fill="${cloudColors[cloud]}" fill-opacity="${opacity.toFixed(2)}"><title>Nube de probabilidad en n=${cloud + 1}</title></circle>`;
+                    }
+                }
+                content += '<circle cx="200" cy="180" r="38" fill="url(#quantum-nucleus)" stroke="#e0f2fe" stroke-width="1.5"/><text x="200" y="184" text-anchor="middle" fill="#082f49" font-size="10" font-weight="bold">NÚCLEO</text>';
+                content += '<g font-size="10"><text x="36" y="300" fill="#67e8f9">● mayor probabilidad</text><text x="36" y="316" fill="#64748b">● menor probabilidad</text><text x="250" y="300" fill="#cbd5e1">n=1 ... n=7</text></g>';
+                svg.innerHTML = content;
+                return;
+            }
+            shells.forEach((count, index) => {
+                const radius = 48 + index * 35;
+                content += `<circle cx="200" cy="200" r="${radius}" fill="none" stroke="#64748b" stroke-opacity=".5" stroke-dasharray="3 5"/>`;
+                for (let electron = 0; electron < count; electron += 1) {
+                    const angle = (electron / count) * Math.PI * 2 - Math.PI / 2;
+                    const x = 200 + Math.cos(angle) * radius;
+                    const y = 200 + Math.sin(angle) * radius;
+                    content += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${electronColor}"><title>${antimatterMode ? 'Positrón' : 'Electrón'}</title></circle>`;
+                }
+            });
+            content += '<circle cx="200" cy="200" r="38" fill="url(#nucleus)" stroke="#94a3b8" stroke-width="1"/>';
+            for (let index = 0; index < particles; index += 1) {
+                const angle = index * 2.39996;
+                const radius = Math.sqrt(index / Math.max(particles, 1)) * 29;
+                const x = 200 + Math.cos(angle) * radius;
+                const y = 200 + Math.sin(angle) * radius;
+                const color = index < model.protons ? protonColor : neutronColor;
+                content += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${particles > 60 ? 2.5 : 4}" fill="${color}"/>`;
+            }
+            svg.innerHTML = content;
+        }
+
+        function saveToLibrary() {
+            const saved = JSON.parse(localStorage.getItem('atomic-library') || '[]');
+            saved.unshift({ ...model, symbol: model.protons === selected.z ? selected.symbol : 'X', name: customName || (model.protons === selected.z ? selected.name : 'Átomo personalizado') });
+            localStorage.setItem('atomic-library', JSON.stringify(saved.slice(0, 8)));
+            renderLibrary();
+        }
+
+        function renderLibrary() {
+            const saved = JSON.parse(localStorage.getItem('atomic-library') || '[]');
+            $('library-container').innerHTML = saved.length ? saved.map((item, index) => `<button type="button" class="w-full text-left p-2 rounded bg-slate-700 hover:bg-slate-600" onclick="window.loadSaved(${index})"><strong>${item.name}</strong> <span class="text-xs text-slate-400">${item.symbol}: p${item.protons} n${item.neutrons} e${item.electrons}</span></button>`).join('') : '<p>No hay modelos guardados.</p>';
+            window.savedModels = saved;
+        }
+
+        function loadSaved(index) {
+            const saved = window.savedModels[index];
+            if (!saved) return;
+            const element = ELEMENTS.find(item => item.symbol === saved.symbol);
+            if (element) selected = element;
+            model = { protons: saved.protons, neutrons: saved.neutrons, electrons: saved.electrons };
+            customName = saved.symbol === 'X' ? saved.name : '';
+            $('custom-name').value = customName;
+            ['protons', 'neutrons', 'electrons'].forEach(key => { $("slide-" + key).value = model[key]; $("val-" + key).textContent = model[key]; });
+            updateDetails();
+            redraw();
+        }
+
+        function filterReferences(query = '') {
+            const normalized = query.trim().toLowerCase();
+            const matches = REFERENCES.filter(reference => `${reference.title} ${reference.source} ${reference.topic}`.toLowerCase().includes(normalized));
+            $('references-container').innerHTML = matches.length ? matches.map(reference => `<a href="${reference.url}" target="_blank" rel="noopener noreferrer" class="block rounded-lg bg-slate-700 hover:bg-slate-600 p-3"><strong class="block text-sm text-cyan-200">${reference.title}</strong><span class="text-xs text-slate-400">${reference.source} · ${reference.topic}</span></a>`).join('') : '<p class="text-xs text-slate-500">No se encontraron referencias.</p>';
+        }
+
+        function clearLibrary() { localStorage.removeItem('atomic-library'); renderLibrary(); }
+        window.selectElement = selectElement;
+        window.toggleAntimatter = toggleAntimatter;
+        window.updateCustomParticle = updateCustomParticle;
+        window.setIsotope = setIsotope;
+        window.selectFactor = selectFactor;
+        window.updateFactorIntensity = updateFactorIntensity;
+        window.applyFactor = applyFactor;
+        window.renderComparison = renderComparison;
+        window.exportExperiments = exportExperiments;
+        window.generateReport = generateReport;
+        window.printReport = printReport;
+        window.clearExperiments = clearExperiments;
+        window.setRepresentation = setRepresentation;
+        window.toggleHologram = toggleHologram;
+        window.redraw = redraw;
+        window.saveToLibrary = saveToLibrary;
+        window.loadSaved = loadSaved;
+        window.clearLibrary = clearLibrary;
+        window.filterReferences = filterReferences;
+        window.showView = showView;
+        window.filterParticles = filterParticles;
+        window.selectParticle = selectParticle;
+        window.runCollisionExperiment = runCollisionExperiment;
+        window.updateCollisionParameter = updateCollisionParameter;
+        window.runDecayExperiment = runDecayExperiment;
+        window.runParticleExperiment = runParticleExperiment;
+        window.updateTimeSimulation = updateTimeSimulation;
+        window.addEventListener('DOMContentLoaded', () => {
+            $('element-selector').innerHTML = PERIODIC_ELEMENTS.map(element => `<option value="${element.z}">${element.name} (${element.symbol})</option>`).join('');
+            $('particle-category').innerHTML = ['Todos', ...new Set(PARTICLES.map(particle => particle.type))].map(category => `<option value="${category}">${category}</option>`).join('');
+            filterParticles();
+            selectParticle('e⁻');
+            $('factor-selector').innerHTML = Object.entries(FACTORS).map(([key, factor]) => `<option value="${key}">${factor.name}</option>`).join('');
+            const comparisonOptions = PERIODIC_ELEMENTS.map(element => `<option value="${element.z}">${element.name} (${element.symbol})</option>`).join('');
+            $('compare-a').innerHTML = comparisonOptions;
+            $('compare-b').innerHTML = comparisonOptions;
+            $('compare-b').value = '8';
+            renderComparison();
+            $('experiment-target').innerHTML = PERIODIC_ELEMENTS.map(element => `<option value="${element.z}">${element.name} (${element.symbol})</option>`).join('');
+            $('experiment-target').value = '2';
+            $('custom-name').addEventListener('input', event => { customName = event.target.value.trim(); updateDetails(); });
+            selectElement(1);
+            selectFactor('temperature');
+            renderLibrary();
+            renderExperiments();
+            filterReferences();
+            renderPeriodicTable();
+            showView('laboratory');
+            $('loading-screen').classList.add('opacity-0', 'pointer-events-none');
+        });
+    </script>
+</body>
+</html>
 <!-- ===== MEJORAS v2: pegar justo ANTES de </body> en tu archivo (después de tu <script> original) ===== -->
 <script>
 window.addEventListener('DOMContentLoaded', () => {
@@ -248,3 +1371,4 @@ window.addEventListener('DOMContentLoaded', () => {
   updateDetails(); redraw(); updateEnergyDisplay();
 });
 </script>
+
